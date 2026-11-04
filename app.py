@@ -23,7 +23,6 @@ WEAN_AGE_DAYS = 21      # rodent weaning age and zebrafish grow-out (dpf)
 ECLOSION_DAYS = 10      # Drosophila egg-to-adult at 25 C
 MIN_STRAIN_MONTHS = 6   # strains with a shorter record are kept out of the regression plots
 DEFAULT_BENCHMARKS = {"S101": 6.0, "S102": 6.0, "S103": 7.0, "S104": 8.0,                  # mice
-                      "L404": 6.0, "L438": 7.0, "L134": 8.0, "L127": 6.0,                  # fish
                       "D210": 45.0, "D227": 50.0, "D245": 55.0, "D263": 45.0}              # fruit flies
 PLATFORMS = {
     "rodent": dict(
@@ -46,7 +45,7 @@ PLATFORMS = {
     "aquatic": dict(
         label="Aquatic", icon="🐟", info_tab="Line Information", title="Aquatic strain management", data_sub="aquatic",
         unit="tank", units="tanks", id_col="tank_id", schedule=False,
-        wean_days=WEAN_AGE_DAYS, strain_re=r"L\d+", strain_hint="L[number]", bench_default=7.0, bench_max=20.0,
+        wean_days=WEAN_AGE_DAYS, strain_re=r"L[A-Z]?\d+[A-Z]?", strain_hint="L[number], e.g. L404, LM12, L358A", bench_default=35.0, bench_max=100.0,
         t=dict(
             batch="clutch", batches="clutches", batch_cap="Clutch", young="embryos", y_lbl="Embryos per clutch",
             per="embryos/clutch", wean_tab="Juvenile survival", date_lbl="Spawning date",

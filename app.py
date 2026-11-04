@@ -615,6 +615,14 @@ with tab_info:
         tbl = info_raw.merge(live, on="strain", how="outer")
         no_info = [x for x in strains if x not in set(info_raw["strain"])]
         no_data = [x for x in info_raw["strain"] if x not in strains]
+        if "recommended_control" in info_raw.columns:
+            listed = set(info_raw["strain"]) | set(strains)
+            ctrl = info_raw[["strain", "recommended_control"]].dropna(subset=["recommended_control"])
+            ctrl = ctrl.assign(recommended_control=ctrl["recommended_control"].astype(str).str.strip())
+            bad = ctrl[(ctrl["recommended_control"] != "") & ~ctrl["recommended_control"].isin(listed)]
+            if len(bad):
+                st.warning("recommended_control is not a listed strain: "
+                           + ", ".join(f"{r.strain} → {r.recommended_control}" for r in bad.itertuples()))
         if no_info:
             st.warning(f"In the breeding records but not in strains.csv: {', '.join(no_info)}")
         if no_data:

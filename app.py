@@ -408,8 +408,9 @@ first_setup = pairs_raw.groupby("strain")["setup_date"].min()
 established = {s: as_of >= first_setup[s] + pd.DateOffset(months=MIN_STRAIN_MONTHS) for s in strains}
 young = [s for s in strains if not established[s]]
 
-lit_all = enrich_litters(litters_raw, as_of, cfg["wean_days"])
-lit_all = lit_all[lit_all["strain"].isin(sel_strains) & (lit_all["dob"] <= as_of)]
+lit_every = enrich_litters(litters_raw, as_of, cfg["wean_days"])
+lit_every = lit_every[lit_every["dob"] <= as_of]          # all strains; used by the Line Information table
+lit_all = lit_every[lit_every["strain"].isin(sel_strains)]
 lit = lit_all[(lit_all["dob"].dt.date >= d_from) & (lit_all["dob"].dt.date <= d_to)]
 psum = pair_summary(pairs, lit_all, as_of, bench)
 
@@ -440,7 +441,7 @@ with tab_over:
         st.info(f"No {T['batches']} in this period.")
     else:
         fig = px.box(lit_p, x="strain", y="litter_size", color="strain", points="all",
-                     color_discrete_map=color_map, category_orders={"strain": strains},
+                     color_discrete_map=color_map, category_orders={"strain": [s for s in strains if s in sel_strains]},
                      labels={"litter_size": T["y_lbl"], "strain": ""})
         shown = [s for s in strains if s in set(lit_p["strain"])]
         fig.add_trace(go.Scatter(x=shown, y=[bench[s] for s in shown], mode="markers", name="Benchmark",
@@ -611,8 +612,8 @@ with tab_info:
         "strain": strains,
         f"active_{cfg['units']}": [int((pairs_raw[(pairs_raw["strain"] == x)]["state"] == "active").sum()) for x in strains],
         "first_setup": [first_setup[x] for x in strains],
-        T["batches"]: [int((lit_all["strain"] == x).sum()) for x in strains],
-        "mean_size": [lit_all.loc[lit_all["strain"] == x, "litter_size"].mean() for x in strains],
+        T["batches"]: [int((lit_every["strain"] == x).sum()) for x in strains],
+        "mean_size": [lit_every.loc[lit_every["strain"] == x, "litter_size"].mean() for x in strains],
         "benchmark": [bench[x] for x in strains],
     })
     if info_raw is None:
@@ -636,7 +637,7 @@ with tab_info:
             st.warning(f"In the breeding records but not in strains.csv: {', '.join(no_info)}")
         if no_data:
             st.caption(f"Listed in strains.csv but with no breeding records yet: {', '.join(no_data)}")
-    tbl = tbl[tbl["strain"].isin(sel_strains) | ~tbl["strain"].isin(strains)].sort_values("strain")
+    tbl = tbl.sort_values("strain")          # every strain, not only the selected ones
     st.dataframe(
         tbl, hide_index=True, width="stretch",
         column_config={

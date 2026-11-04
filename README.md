@@ -1,6 +1,13 @@
 # iStrain: strain management dashboard for mice, fish and fruit flies
 
-Streamlit app (toy data). Run locally: `pip install -r requirements.txt && streamlit run app.py`.
+Streamlit app (toy data). Run locally:
+
+```
+mamba create -n istrain python=3.11 -y
+mamba activate istrain
+pip install -r requirements.txt
+streamlit run app.py
+```
 
 ## Strain IDs
 

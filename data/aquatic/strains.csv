@@ -1,0 +1,5 @@
+strain,name,genotype,background,source,date_acquired,notes
+L404,AB,wild type,AB,toy data,2023-09-01,Example row; replace with real information
+L438,Tu,wild type,Tuebingen,toy data,2023-09-01,Example row; replace with real information
+L134,WIK,wild type,WIK,toy data,2023-09-01,Example row; replace with real information
+L127,TL,wild type,Tupfel long fin,toy data,2026-05-20,Example row; replace with real information

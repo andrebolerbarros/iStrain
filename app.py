@@ -27,7 +27,7 @@ DEFAULT_BENCHMARKS = {"S101": 6.0, "S102": 6.0, "S103": 7.0, "S104": 8.0,       
                       "D210": 45.0, "D227": 50.0, "D245": 55.0, "D263": 45.0}              # fruit flies
 PLATFORMS = {
     "rodent": dict(
-        label="Rodents", icon="🐭", title="Mouse strain management", data_sub="",
+        label="Rodents", icon="🐭", info_tab="Strain Information", title="Mouse strain management", data_sub="",
         unit="pair", units="pairs", id_col="pair_id", schedule=True,
         wean_days=WEAN_AGE_DAYS, strain_re=r"S\d+", strain_hint="S[number]", bench_default=7.0, bench_max=20.0,
         t=dict(
@@ -44,7 +44,7 @@ PLATFORMS = {
             id_lbl="litter_id", size_lbl="litter_size", status_map={},
         )),
     "aquatic": dict(
-        label="Aquatic", icon="🐟", title="Aquatic strain management", data_sub="aquatic",
+        label="Aquatic", icon="🐟", info_tab="Line Information", title="Aquatic strain management", data_sub="aquatic",
         unit="tank", units="tanks", id_col="tank_id", schedule=False,
         wean_days=WEAN_AGE_DAYS, strain_re=r"L\d+", strain_hint="L[number]", bench_default=7.0, bench_max=20.0,
         t=dict(
@@ -64,7 +64,7 @@ PLATFORMS = {
                         "Weaning due / overdue": "Past 21 dpf, not recorded"},
         )),
     "fly": dict(
-        label="Fruit Fly", icon="🪰", title="Fruit fly (Drosophila) strain management", data_sub="fly",
+        label="Fruit Fly", icon="🪰", info_tab="Line Information", title="Fruit fly (Drosophila) strain management", data_sub="fly",
         unit="cross", units="crosses", id_col="cross_id", schedule=False,
         wean_days=ECLOSION_DAYS, strain_re=r"D\d+", strain_hint="D[number]", bench_default=50.0, bench_max=200.0,
         t=dict(
@@ -92,6 +92,7 @@ PERIODS = {
     "Last year": pd.DateOffset(years=1),
     "All records": None,
 }
+INFO_COLS = ["strain", "name", "genotype", "background", "source", "date_acquired", "notes"]   # strains.csv; only "strain" is required
 PAIR_COLS = {"pair_id", "strain", "male_id", "female_id", "setup_date", "status"}
 LITTER_COLS = {
     "litter_id", "pair_id", "strain", "dob", "litter_size",
@@ -124,12 +125,14 @@ def _check_columns(df: pd.DataFrame, required: set[str], name: str) -> None:
         st.stop()
 
 
-def load_data(sub: str, platform: str) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def load_data(sub: str, platform: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, str]:
     with st.sidebar.expander("Data source"):
         up_p = st.file_uploader("breeding_pairs.csv", type="csv", key=f"up_pairs_{platform}")
         up_l = st.file_uploader("litters.csv", type="csv", key=f"up_litters_{platform}")
+        up_s = st.file_uploader("strains.csv (optional)", type="csv", key=f"up_info_{platform}")
     if up_p is not None and up_l is not None:
         pairs, litters, source = _read_csv(up_p), _read_csv(up_l), "uploaded files"
+        info = _read_csv(up_s) if up_s is not None else None
     else:
         d = _find_data_dir(sub)
         if d is None:
@@ -138,6 +141,8 @@ def load_data(sub: str, platform: str) -> tuple[pd.DataFrame, pd.DataFrame, str]
         fp, fl = d / "breeding_pairs.csv", d / "litters.csv"
         pairs, litters = _read_csv(fp, fp.stat().st_mtime), _read_csv(fl, fl.stat().st_mtime)
         source = str(d)
+        fs = d / "strains.csv"
+        info = _read_csv(fs, fs.stat().st_mtime) if fs.exists() else None
     _check_columns(pairs, PAIR_COLS, "breeding_pairs.csv")
     _check_columns(litters, LITTER_COLS, "litters.csv")
     if "sacrifice_date" not in pairs.columns:       # older files: every pair is still breeding
@@ -153,7 +158,16 @@ def load_data(sub: str, platform: str) -> tuple[pd.DataFrame, pd.DataFrame, str]
         n_males_weaned=pd.to_numeric(litters["n_males_weaned"], errors="coerce"),
         n_females_weaned=pd.to_numeric(litters["n_females_weaned"], errors="coerce"),
     )
-    return pairs, litters, source
+    if info is not None:
+        _check_columns(info, {"strain"}, "strains.csv")
+        info = info.assign(strain=info["strain"].astype(str).str.strip())
+        if "date_acquired" in info.columns:
+            info = info.assign(date_acquired=pd.to_datetime(info["date_acquired"], errors="coerce"))
+        dup = info["strain"][info["strain"].duplicated()].unique()
+        if len(dup):
+            st.error(f"strains.csv lists strain(s) more than once: {', '.join(dup)}")
+            st.stop()
+    return pairs, litters, info, source
 
 
 def add_pair_state(pairs: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
@@ -359,7 +373,7 @@ if st.sidebar.button("← iStrain home", key="home"):
     st.rerun()
 
 # --------------------------------------------------------------------------- UI
-pairs_raw, litters_raw, source = load_data(cfg["data_sub"], platform)
+pairs_raw, litters_raw, info_raw, source = load_data(cfg["data_sub"], platform)
 strains = sorted(pairs_raw["strain"].unique())
 bad_ids = [s for s in strains if not re.fullmatch(cfg["strain_re"], str(s))]
 if bad_ids:
@@ -396,11 +410,11 @@ if lit.empty:
     st.stop()
 
 tab_names = ["Overview", T["wean_tab"], "Sex ratio"] + (["Weaning schedule"] if cfg["schedule"] else []) \
-    + [f"Breeding {cfg['units']}"]
+    + [f"Breeding {cfg['units']}", cfg["info_tab"]]
 _tabs = st.tabs(tab_names)
 tab_over, tab_wean, tab_sex = _tabs[:3]
 tab_sched = _tabs[3] if cfg["schedule"] else None
-tab_pairs = _tabs[-1]
+tab_pairs, tab_info = _tabs[-2], _tabs[-1]
 
 # ---- Overview
 with tab_over:
@@ -578,3 +592,44 @@ with tab_pairs:
         st.plotly_chart(fig, width="stretch")
         st.caption(f"Marker size = {T['batch']} size. Dotted line = as-of date; open diamonds = estimated "
                    f"next {T['batch']}.")
+
+# ---- Strain / line information
+with tab_info:
+    noun = "strain" if platform == "rodent" else "line"
+    st.subheader(cfg["info_tab"])
+    # live numbers per strain, computed from the pair and batch records (not from strains.csv)
+    live = pd.DataFrame({
+        "strain": strains,
+        f"active_{cfg['units']}": [int((pairs_raw[(pairs_raw["strain"] == x)]["state"] == "active").sum()) for x in strains],
+        "first_setup": [first_setup[x] for x in strains],
+        T["batches"]: [int((lit_all["strain"] == x).sum()) for x in strains],
+        "mean_size": [lit_all.loc[lit_all["strain"] == x, "litter_size"].mean() for x in strains],
+        "benchmark": [bench[x] for x in strains],
+    })
+    if info_raw is None:
+        st.info(f"No strains.csv found, so only record-derived numbers are shown. Add strains.csv "
+                f"(columns: {', '.join(INFO_COLS)}; only 'strain' is required) next to the other data files, "
+                "or upload it from the sidebar.")
+        tbl = live
+    else:
+        tbl = info_raw.merge(live, on="strain", how="outer")
+        no_info = [x for x in strains if x not in set(info_raw["strain"])]
+        no_data = [x for x in info_raw["strain"] if x not in strains]
+        if no_info:
+            st.warning(f"In the breeding records but not in strains.csv: {', '.join(no_info)}")
+        if no_data:
+            st.caption(f"Listed in strains.csv but with no breeding records yet: {', '.join(no_data)}")
+    tbl = tbl[tbl["strain"].isin(sel_strains) | ~tbl["strain"].isin(strains)].sort_values("strain")
+    st.dataframe(
+        tbl, hide_index=True, width="stretch",
+        column_config={
+            "strain": st.column_config.TextColumn(noun),
+            "date_acquired": st.column_config.DateColumn("acquired"),
+            "first_setup": st.column_config.DateColumn(f"first {cfg['unit']} set up"),
+            T["batches"]: st.column_config.NumberColumn(format="%d"),
+            "mean_size": st.column_config.NumberColumn(f"mean {T['batch']} size", format="%.1f"),
+            "benchmark": st.column_config.NumberColumn("bench.", format="%.1f"),
+        },
+    )
+    st.caption(f"Descriptive columns come from strains.csv; counts and means are computed from the breeding records "
+               f"up to the as-of date (all {T['batches']}, not limited by the date-range filter).")

@@ -1,0 +1,5 @@
+strain,name,genotype,background,source,date_acquired,notes
+S101,BALB/cJ,wild type,inbred,toy data,2023-09-01,Example row; replace with real information
+S102,C3H,wild type,inbred,toy data,2026-05-20,Example row; replace with real information
+S103,C57BL/6J,wild type,inbred,toy data,2023-09-01,Example row; replace with real information
+S104,FVB/NJ,wild type,inbred,toy data,2023-09-01,Example row; replace with real information

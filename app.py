@@ -1,12 +1,14 @@
-"""iStrain: strain management dashboards for rodents and aquatic models (Streamlit).
+"""iStrain: strain management dashboards for rodents, aquatic models and fruit flies (Streamlit).
 
-Run locally:   streamlit run app_scratch.py
-Data:          breeding_pairs.csv + litters.csv, looked up in ./data (rodents) and ./data/aquatic
-               (aquatic), ../../data, or $STRAIN_DATA_DIR. Other files can be uploaded from the sidebar.
+Run locally:   streamlit run app.py
+Data:          breeding_pairs.csv + litters.csv, looked up in ./data (rodents), ./data/aquatic (aquatic) and
+               ./data/fly (fruit fly), ../../data, or $STRAIN_DATA_DIR. Other files can be uploaded from the sidebar.
+Strain IDs:    S[number] for mice, L[number] for fish and fruit flies (checked softly in the sidebar).
 """
 from __future__ import annotations
 
 import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -17,14 +19,17 @@ import plotly.graph_objects as go
 import streamlit as st
 from scipy import stats
 
-WEAN_AGE_DAYS = 21
+WEAN_AGE_DAYS = 21      # rodent weaning age and zebrafish grow-out (dpf)
+ECLOSION_DAYS = 10      # Drosophila egg-to-adult at 25 C
 MIN_STRAIN_MONTHS = 6   # strains with a shorter record are kept out of the regression plots
-DEFAULT_BENCHMARKS = {"BALB/cJ": 6.0, "C57BL/6J": 7.0, "FVB/NJ": 8.0, "C3H": 6.0,
-                      "L404": 6.0, "L438": 7.0, "L134": 8.0, "L127": 6.0}
+DEFAULT_BENCHMARKS = {"S101": 6.0, "S102": 6.0, "S103": 7.0, "S104": 8.0,                  # mice
+                      "L404": 6.0, "L438": 7.0, "L134": 8.0, "L127": 6.0,                  # fish
+                      "L210": 45.0, "L227": 50.0, "L245": 55.0, "L263": 45.0}              # fruit flies
 PLATFORMS = {
     "rodent": dict(
         label="Rodents", icon="🐭", title="Mouse strain management", data_sub="",
         unit="pair", units="pairs", id_col="pair_id", schedule=True,
+        wean_days=WEAN_AGE_DAYS, strain_re=r"S\d+", strain_hint="S[number]", bench_default=7.0, bench_max=20.0,
         t=dict(
             batch="litter", batches="litters", batch_cap="Litter", young="pups", y_lbl="Pups per litter",
             per="pups/litter", wean_tab="Weaning", date_lbl="Date of birth", range_lbl="Litter DOB range",
@@ -41,6 +46,7 @@ PLATFORMS = {
     "aquatic": dict(
         label="Aquatic", icon="🐟", title="Aquatic strain management", data_sub="aquatic",
         unit="tank", units="tanks", id_col="tank_id", schedule=False,
+        wean_days=WEAN_AGE_DAYS, strain_re=r"L\d+", strain_hint="L[number]", bench_default=7.0, bench_max=20.0,
         t=dict(
             batch="clutch", batches="clutches", batch_cap="Clutch", young="embryos", y_lbl="Embryos per clutch",
             per="embryos/clutch", wean_tab="Juvenile survival", date_lbl="Spawning date",
@@ -56,6 +62,26 @@ PLATFORMS = {
             dob_short="spawn date", id_lbl="clutch_id", size_lbl="clutch_size",
             status_map={"Weaned": "At 21 dpf", "Pre-weaning": "In grow-out",
                         "Weaning due / overdue": "Past 21 dpf, not recorded"},
+        )),
+    "fly": dict(
+        label="Fruit Fly", icon="🪰", title="Fruit fly (Drosophila) strain management", data_sub="fly",
+        unit="cross", units="crosses", id_col="cross_id", schedule=False,
+        wean_days=ECLOSION_DAYS, strain_re=r"L\d+", strain_hint="L[number]", bench_default=50.0, bench_max=200.0,
+        t=dict(
+            batch="brood", batches="broods", batch_cap="Brood", young="progeny", y_lbl="Progeny per brood",
+            per="progeny/brood", wean_tab="Eclosion", date_lbl="Egg-laying date",
+            range_lbl="Brood egg-laying date range", bench_lbl="Benchmark brood size (progeny)",
+            age_cap=f"Egg to adult (eclosion): {ECLOSION_DAYS} days at 25 °C",
+            kpi="Broods in development", kpi_help="Broods that have not yet reached eclosion "
+                                                  f"({ECLOSION_DAYS} days) or have no eclosed-adult count recorded.",
+            surv_title="Probability of brood survival to eclosion (egg-to-adult viability)",
+            surv_y="P(egg develops to adult)",
+            surv_msg="Per strain, logistic regression on broods that reached eclosion: success = adult eclosed, "
+                     "failure = egg/progeny counted but no adult (brood size minus eclosed). ",
+            sex_on="eclosed broods", last_lbl="last brood", next_lbl="Next brood",
+            dob_short="egg-laying date", id_lbl="brood_id", size_lbl="brood_size",
+            status_map={"Weaned": "Eclosed", "Pre-weaning": "In development",
+                        "Weaning due / overdue": f"Past {ECLOSION_DAYS} d, not recorded"},
         )),
 }
 # Okabe-Ito, colour-blind safe; one fixed colour per strain across every chart
@@ -138,14 +164,14 @@ def add_pair_state(pairs: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
     return pairs.assign(state=state)
 
 
-def enrich_litters(litters: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
+def enrich_litters(litters: pd.DataFrame, as_of: pd.Timestamp, wean_days: int) -> pd.DataFrame:
     """Add weaning status and derived columns. Blank weaning data is 'not weaned yet'."""
     df = litters.copy()
     df["weaned_recorded"] = df["n_males_weaned"].notna() & df["n_females_weaned"].notna()
     df["n_weaned"] = df["n_males_weaned"].fillna(0) + df["n_females_weaned"].fillna(0)
     df.loc[~df["weaned_recorded"], "n_weaned"] = pd.NA
     df["wean_survival"] = (df["n_weaned"].astype("float") / df["litter_size"]).where(df["weaned_recorded"])
-    df["expected_wean"] = df["wean_date"].fillna(df["dob"] + pd.Timedelta(days=WEAN_AGE_DAYS))
+    df["expected_wean"] = df["wean_date"].fillna(df["dob"] + pd.Timedelta(days=wean_days))
     days_to = (df["expected_wean"] - as_of).dt.days
     df["days_to_wean"] = days_to.where(~df["weaned_recorded"])
     df["status"] = "Weaned"
@@ -314,8 +340,8 @@ def landing() -> None:
     st.markdown("<h1 style='text-align:center'>Welcome to the iStrain - the strain manager of your model organism</h1>",
                 unsafe_allow_html=True)
     st.write("")
-    _, c1, c2, _ = st.columns([1, 2, 2, 1])
-    for col, key in ((c1, "rodent"), (c2, "aquatic")):
+    _, c1, c2, c3, _ = st.columns([1, 2, 2, 2, 1])
+    for col, key in ((c1, "rodent"), (c2, "aquatic"), (c3, "fly")):
         cfg_ = PLATFORMS[key]
         if col.button(f"{cfg_['icon']}  {cfg_['label']}", key=f"go_{key}", width="stretch"):
             st.session_state["platform"] = key
@@ -335,6 +361,9 @@ if st.sidebar.button("← iStrain home", key="home"):
 # --------------------------------------------------------------------------- UI
 pairs_raw, litters_raw, source = load_data(cfg["data_sub"], platform)
 strains = sorted(pairs_raw["strain"].unique())
+bad_ids = [s for s in strains if not re.fullmatch(cfg["strain_re"], str(s))]
+if bad_ids:
+    st.sidebar.warning(f"Strain IDs should be {cfg['strain_hint']}; not matching: {', '.join(map(str, bad_ids))}")
 color_map = {s: PALETTE[i % len(PALETTE)] for i, s in enumerate(strains)}
 
 st.sidebar.title(f"{cfg['icon']} Strain management")
@@ -343,7 +372,8 @@ as_of = pd.Timestamp(st.sidebar.date_input("As-of date", value=date.today(), key
 min_d, max_d = litters_raw["dob"].min().date(), max(litters_raw["dob"].max().date(), as_of.date())
 d_from, d_to = st.sidebar.slider(T["range_lbl"], min_d, max_d, (min_d, max_d), key=f"{platform}_dob")
 with st.sidebar.expander(T["bench_lbl"]):
-    bench = {s: st.number_input(s, 0.0, 20.0, DEFAULT_BENCHMARKS.get(s, 7.0), 0.5, key=f"{platform}_bench_{s}")
+    bench = {s: st.number_input(s, 0.0, cfg["bench_max"], DEFAULT_BENCHMARKS.get(s, cfg["bench_default"]), 0.5,
+                                key=f"{platform}_bench_{s}")
              for s in strains}
 st.sidebar.caption(f"{T['age_cap']} · Source: {source}")
 
@@ -355,7 +385,7 @@ first_setup = pairs_raw.groupby("strain")["setup_date"].min()
 established = {s: as_of >= first_setup[s] + pd.DateOffset(months=MIN_STRAIN_MONTHS) for s in strains}
 young = [s for s in strains if not established[s]]
 
-lit_all = enrich_litters(litters_raw, as_of)
+lit_all = enrich_litters(litters_raw, as_of, cfg["wean_days"])
 lit_all = lit_all[lit_all["strain"].isin(sel_strains) & (lit_all["dob"] <= as_of)]
 lit = lit_all[(lit_all["dob"].dt.date >= d_from) & (lit_all["dob"].dt.date <= d_to)]
 psum = pair_summary(pairs, lit_all, as_of, bench)
@@ -500,7 +530,7 @@ if tab_sched is not None:
                     "litter_size": st.column_config.NumberColumn("pups", format="%d"),
                 },
             )
-            st.caption(f"Expected weaning = DOB + {WEAN_AGE_DAYS} days.")
+            st.caption(f"Expected weaning = DOB + {cfg['wean_days']} days.")
 
 # ---- Breeding pairs (active only)
 with tab_pairs:

@@ -382,14 +382,22 @@ if bad_ids:
 color_map = {s: PALETTE[i % len(PALETTE)] for i, s in enumerate(strains)}
 
 st.sidebar.title(f"{cfg['icon']} Strain management")
-sel_strains = st.sidebar.multiselect("Strains", strains, default=strains, key=f"{platform}_strains")
+MAX_STRAINS = 5      # at most this many strains are plotted at once
+_names = {}
+if info_raw is not None and "name" in info_raw.columns:
+    _names = dict(zip(info_raw["strain"].astype(str), info_raw["name"].fillna("").astype(str)))
+_top = litters_raw["strain"].value_counts().index[:MAX_STRAINS]          # default: the 5 lines with most records
+sel_strains = st.sidebar.multiselect(
+    f"Strains (max {MAX_STRAINS}; type to search by ID or name)", strains,
+    default=[s for s in strains if s in set(_top)], max_selections=MAX_STRAINS, key=f"{platform}_strains",
+    format_func=lambda s: f"{s} · {_names[s][:40]}" if _names.get(s) else s)
 as_of = pd.Timestamp(st.sidebar.date_input("As-of date", value=date.today(), key=f"{platform}_asof"))
 min_d, max_d = litters_raw["dob"].min().date(), max(litters_raw["dob"].max().date(), as_of.date())
 d_from, d_to = st.sidebar.slider(T["range_lbl"], min_d, max_d, (min_d, max_d), key=f"{platform}_dob")
 with st.sidebar.expander(T["bench_lbl"]):
-    bench = {s: st.number_input(s, 0.0, cfg["bench_max"], DEFAULT_BENCHMARKS.get(s, cfg["bench_default"]), 0.5,
-                                key=f"{platform}_bench_{s}")
-             for s in strains}
+    bench = {s: DEFAULT_BENCHMARKS.get(s, cfg["bench_default"]) for s in strains}
+    for s in sel_strains:               # only the selected strains get an input
+        bench[s] = st.number_input(s, 0.0, cfg["bench_max"], bench[s], 0.5, key=f"{platform}_bench_{s}")
 st.sidebar.caption(f"{T['age_cap']} · Source: {source}")
 
 pairs_raw = add_pair_state(pairs_raw, as_of)

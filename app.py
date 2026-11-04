@@ -170,9 +170,11 @@ def load_data(sub: str, platform: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
 
 
 def add_pair_state(pairs: pd.DataFrame, as_of: pd.Timestamp) -> pd.DataFrame:
-    """A pair is active on `as_of` if it was set up and not yet sacrificed."""
+    """A pair is active on `as_of` if it was set up and not yet sacrificed. A pair marked inactive/sacrificed in
+    `status` but without a sacrifice_date (e.g. the aquatic export) counts as no longer active."""
     started = pairs["setup_date"] <= as_of
     gone = pairs["sacrifice_date"].notna() & (pairs["sacrifice_date"] <= as_of)
+    gone |= pairs["sacrifice_date"].isna() & pairs["status"].astype(str).str.strip().str.lower().isin(["inactive", "sacrificed"])
     state = np.where(~started, "not set up", np.where(gone, "sacrificed", "active"))
     return pairs.assign(state=state)
 

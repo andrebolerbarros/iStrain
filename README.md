@@ -25,3 +25,4 @@ The column names are the same on every platform. Fish and fly files reuse the ro
 ## TODO
 
 - [ ] Review API with PyRat
+- [ ] Decide data source (CSV vs PyRat API) after the API review

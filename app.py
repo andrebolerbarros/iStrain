@@ -1,7 +1,7 @@
 """iStrain: strain management dashboards for rodents, aquatic models and fruit flies (Streamlit).
 
 Run locally:   streamlit run app.py
-Data:          breeding_pairs.csv + litters.csv, looked up in ./data (rodents), ./data/aquatic (aquatic) and
+Data:          breeding_pairs.csv + litters.csv, looked up in ./real_data when it exists, else ./data (rodents), ./data/aquatic (aquatic) and
                ./data/fly (fruit fly), ../../data, or $STRAIN_DATA_DIR. Other files can be uploaded from the sidebar.
 Strain IDs:    S[number] for mice, L[number] for fish, D[number] for fruit flies (checked softly in the sidebar).
 """
@@ -104,7 +104,7 @@ st.set_page_config(page_title="iStrain", page_icon="🧬", layout="wide")
 # --------------------------------------------------------------------------- data
 def _find_data_dir(sub: str = "") -> Path | None:
     here = Path(__file__).resolve().parent
-    candidates = [os.environ.get("STRAIN_DATA_DIR"), here / "data", here.parent.parent / "data", Path.cwd() / "data"]
+    candidates = [os.environ.get("STRAIN_DATA_DIR"), here / "real_data", here / "data", here.parent.parent / "data", Path.cwd() / "data"]
     for c in candidates:
         if c and (Path(c) / sub / "litters.csv").exists():
             return Path(c) / sub

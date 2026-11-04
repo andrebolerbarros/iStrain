@@ -3,7 +3,7 @@
 Run locally:   streamlit run app.py
 Data:          breeding_pairs.csv + litters.csv, looked up in ./data (rodents), ./data/aquatic (aquatic) and
                ./data/fly (fruit fly), ../../data, or $STRAIN_DATA_DIR. Other files can be uploaded from the sidebar.
-Strain IDs:    S[number] for mice, L[number] for fish and fruit flies (checked softly in the sidebar).
+Strain IDs:    S[number] for mice, L[number] for fish, D[number] for fruit flies (checked softly in the sidebar).
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ ECLOSION_DAYS = 10      # Drosophila egg-to-adult at 25 C
 MIN_STRAIN_MONTHS = 6   # strains with a shorter record are kept out of the regression plots
 DEFAULT_BENCHMARKS = {"S101": 6.0, "S102": 6.0, "S103": 7.0, "S104": 8.0,                  # mice
                       "L404": 6.0, "L438": 7.0, "L134": 8.0, "L127": 6.0,                  # fish
-                      "L210": 45.0, "L227": 50.0, "L245": 55.0, "L263": 45.0}              # fruit flies
+                      "D210": 45.0, "D227": 50.0, "D245": 55.0, "D263": 45.0}              # fruit flies
 PLATFORMS = {
     "rodent": dict(
         label="Rodents", icon="🐭", title="Mouse strain management", data_sub="",
@@ -66,7 +66,7 @@ PLATFORMS = {
     "fly": dict(
         label="Fruit Fly", icon="🪰", title="Fruit fly (Drosophila) strain management", data_sub="fly",
         unit="cross", units="crosses", id_col="cross_id", schedule=False,
-        wean_days=ECLOSION_DAYS, strain_re=r"L\d+", strain_hint="L[number]", bench_default=50.0, bench_max=200.0,
+        wean_days=ECLOSION_DAYS, strain_re=r"D\d+", strain_hint="D[number]", bench_default=50.0, bench_max=200.0,
         t=dict(
             batch="brood", batches="broods", batch_cap="Brood", young="progeny", y_lbl="Progeny per brood",
             per="progeny/brood", wean_tab="Eclosion", date_lbl="Egg-laying date",

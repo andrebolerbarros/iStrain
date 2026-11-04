@@ -29,6 +29,14 @@ Each platform reads its files from its own folder: `data/` (mice), `data/aquatic
 
 The column names are the same on every platform. Fish and fly files reuse the rodent names: a tank or cross is a "pair", and a clutch or brood is a "litter". The app relabels them on screen. `recommended_control` should be another listed strain ID; the app warns otherwise.
 
+## Real data (aquatic)
+
+`real_data/aquatic/` is generated from the Nursery management workbook (sheet `ALL DATA`) with
+`python scripts/build_real_data.py` (needs `pandas` + `openpyxl`). Use it with
+`STRAIN_DATA_DIR=real_data streamlit run app.py` (the aquatic tab reads `real_data/aquatic/`).
+One tank = one clutch (`litters.csv`); `pair_id` = `<line>-<stockI>x<stockII>`; `litter_size` = 5/6 dpf count;
+`n_males/females_weaned` = 90 dpf M/F sex count. `tanks_extra.csv` keeps the other columns (35/90 dpf counts, rack, diet, owner...); `exclude.csv` lists tanks left out of the platform files. See [notes/aquatic_decisions.md](notes/aquatic_decisions.md).
+
 ## TODO
 
 - [ ] Review API with PyRat (see [notes/PyRat integration](notes/PyRat-integration.md))

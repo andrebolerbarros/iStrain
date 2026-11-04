@@ -1,5 +1,5 @@
-strain,name,genotype,background,source,date_acquired,notes
-D210,Canton-S,wild type,Canton-S,toy data,2023-09-01,Example row; replace with real information
-D227,Oregon-R,wild type,Oregon-R,toy data,2023-09-01,Example row; replace with real information
-D245,w1118,w[1118],w1118,toy data,2023-09-01,Example row; replace with real information
-D263,yw,y[1] w[1],yw,toy data,2023-09-01,Example row; replace with real information
+strain,name,genotype,background,recommended_control,source,date_acquired,notes
+D210,Canton-S,wild type,Canton-S,D227,toy data,2023-09-01,Example row; replace with real information
+D227,Oregon-R,wild type,Oregon-R,D210,toy data,2023-09-01,Example row; replace with real information
+D245,w1118,w[1118],w1118,D210,toy data,2023-09-01,Example row; replace with real information
+D263,yw,y[1] w[1],yw,D210,toy data,2023-09-01,Example row; replace with real information

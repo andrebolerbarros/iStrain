@@ -92,7 +92,7 @@ PERIODS = {
     "Last year": pd.DateOffset(years=1),
     "All records": None,
 }
-INFO_COLS = ["strain", "name", "genotype", "background", "source", "date_acquired", "notes"]   # strains.csv; only "strain" is required
+INFO_COLS = ["strain", "name", "genotype", "background", "recommended_control", "source", "date_acquired", "notes"]   # strains.csv; only "strain" is required
 PAIR_COLS = {"pair_id", "strain", "male_id", "female_id", "setup_date", "status"}
 LITTER_COLS = {
     "litter_id", "pair_id", "strain", "dob", "litter_size",
@@ -624,6 +624,7 @@ with tab_info:
         tbl, hide_index=True, width="stretch",
         column_config={
             "strain": st.column_config.TextColumn(noun),
+            "recommended_control": st.column_config.TextColumn("recommended control"),
             "date_acquired": st.column_config.DateColumn("acquired"),
             "first_setup": st.column_config.DateColumn(f"first {cfg['unit']} set up"),
             T["batches"]: st.column_config.NumberColumn(format="%d"),
